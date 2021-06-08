@@ -1,9 +1,10 @@
 #include <algorithm>
-#include <functional>
 #include <forward_list>
-#include <vector>
+#include <functional>
+#include <memory>
 #include <stdexcept>
 #include <tuple>
+#include <vector>
 
 template<class Iter>
 size_t my_distance(Iter begin, Iter end) {
@@ -17,6 +18,7 @@ size_t my_distance(Iter begin, Iter end) {
 
 template<class Key, class Value, class Hash = std::hash<Key>>
 class HashMap {
+private:
     using Bucket = std::forward_list<std::pair<Key, Value>>;
     using BucketIter = typename Bucket::iterator;
     using BucketVectorIter = typename std::vector<Bucket>::iterator;
@@ -82,7 +84,7 @@ class HashMap {
     }
 
 public:
-    class iterator {
+    class Iterator {
         HashMap* master;
         BucketVectorIter bucket_vec_iter;
         BucketIter bucket_iter;
@@ -98,12 +100,12 @@ public:
             }
         }
 
-        void inc() {
+        void increase() {
             ++bucket_iter;
             skip_empty();
         }
 
-        iterator(HashMap* _master,
+        Iterator(HashMap* _master,
                  BucketVectorIter _bucket_vec_iter,
                  BucketIter _bucket_iter):
                     master(_master),
@@ -112,7 +114,7 @@ public:
             skip_empty();
         }
 
-        bool equals(const iterator& other) const {
+        bool equals(const Iterator& other) const {
             return std::tie(bucket_vec_iter, bucket_iter) == std::tie(other.bucket_vec_iter, other.bucket_iter);
         }
 
@@ -123,24 +125,24 @@ public:
 
     public:
         friend HashMap;
-        iterator() {}
+        Iterator() {}
 
-        iterator& operator++() {
-            inc();
+        Iterator& operator++() {
+            increase();
             return *this;
         }
 
-        iterator operator++(int) {
+        Iterator operator++(int) {
             const auto clone = *this;
-            inc();
+            increase();
             return clone;
         }
 
-        bool operator==(const iterator& other) const {
+        bool operator==(const Iterator& other) const {
             return equals(other);
         }
 
-        bool operator!=(const iterator& other) const {
+        bool operator!=(const Iterator& other) const {
             return !equals(other);
         }
 
@@ -153,31 +155,31 @@ public:
         }
     };
 
-    class const_iterator {
-        iterator base;
+    class ConstIterator {
+        Iterator base;
 
-        const_iterator(const iterator& _base): base(_base) {}
+        ConstIterator(const Iterator& _base): base(_base) {}
 
     public:
         friend HashMap;
-        const_iterator() {}
+        ConstIterator() {}
 
-        const_iterator& operator++() {
-            base.inc();
+        ConstIterator& operator++() {
+            base.increase();
             return *this;
         }
 
-        const_iterator operator++(int) {
+        ConstIterator operator++(int) {
             const auto clone = *this;
-            base.inc();
+            base.increase();
             return clone;
         }
 
-        bool operator==(const const_iterator& other) const {
+        bool operator==(const ConstIterator& other) const {
             return base.equals(other.base);
         }
 
-        bool operator!=(const const_iterator& other) const {
+        bool operator!=(const ConstIterator& other) const {
             return !base.equals(other.base);
         }
 
@@ -196,8 +198,10 @@ public:
     }
 
     template<class Iter>
-    HashMap(Iter begin, Iter end,
-            const Hash& hasher = Hash()): get_hash(hasher) {
+    HashMap(Iter begin,
+            Iter end,
+            const Hash& hasher = Hash()
+    ): get_hash(hasher) {
         const size_t count = my_distance(begin, end);
         const size_t n = guess_buckets_num_from_size(count);
         set_buckets_number(n);
@@ -207,7 +211,8 @@ public:
     }
 
     HashMap(const std::initializer_list<std::pair<Key, Value>>& list,
-            const Hash& hasher = Hash()): HashMap(list.begin(), list.end(), hasher) {}
+            const Hash& hasher = Hash()
+    ): HashMap(list.begin(), list.end(), hasher) {}
 
     size_t size() const {
         return size_;
@@ -231,40 +236,40 @@ public:
         update_buckets_num();
     }
 
-    iterator begin() {
-        iterator iter(this, buckets.begin(), buckets.front().begin());
+    Iterator begin() {
+        Iterator iter(this, buckets.begin(), buckets.front().begin());
         return iter;
     }
 
-    iterator end() {
-        iterator iter(this, buckets.end(), buckets.front().begin());
+    Iterator end() {
+        Iterator iter(this, buckets.end(), buckets.front().begin());
         return iter;
     }
 
-    const_iterator begin() const {
+    ConstIterator begin() const {
         HashMap* mutable_this = (HashMap*)(void*)this;
-        return const_iterator(mutable_this->begin());
+        return ConstIterator(mutable_this->begin());
     }
 
-    const_iterator end() const {
+    ConstIterator end() const {
         HashMap* mutable_this = (HashMap*)(void*)this;
-        return const_iterator(mutable_this->end());
+        return ConstIterator(mutable_this->end());
     }
 
-    iterator find(const Key& key) {
+    Iterator find(const Key& key) {
         size_t i = get_hash(key) % buckets.size();
         const auto buckets_iter = buckets.begin() + i;
         for (auto iter = buckets_iter->begin(); iter != buckets_iter->end(); ++iter) {
             if (iter->first == key) {
-                return iterator(this, buckets_iter, iter);
+                return Iterator(this, buckets_iter, iter);
             }
         }
         return end();
     }
 
-    const const_iterator find(const Key& key) const {
+    const ConstIterator find(const Key& key) const {
         HashMap* mutable_this = (HashMap*)(void*)this;
-        return const_iterator(mutable_this->find(key));
+        return ConstIterator(mutable_this->find(key));
     }
 
     Value& operator[](const Key& key) {
@@ -296,7 +301,6 @@ public:
     void clear() {
         buckets.clear();
         size_ = 0;
-        const size_t n = guess_buckets_num_from_size(size_);
-        set_buckets_number(n);
+        set_buckets_number(guess_buckets_num_from_size(size_));
     }
 };
